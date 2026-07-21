@@ -16,6 +16,36 @@ venv/Scripts/python diffusers-scripts/txt2img.py --model models/Stable-diffusion
 venv/Scripts/python diffusers-scripts/txt2img.py --fp32 --no-upcast
 ```
 
+也可以直接在 Python 里调用，不需要命令行：
+
+```python
+import torch
+from diffusers import StableDiffusionXLPipeline
+
+pipe = StableDiffusionXLPipeline.from_single_file(
+    "models/Stable-diffusion/sd_xl_base_1.0_0.9vae.safetensors",
+    torch_dtype=torch.float16,
+)
+pipe.to("cuda")
+
+# 修复 50 系显卡 FP16 加载导致的 position_ids 类型错误
+for comp in [pipe.text_encoder, pipe.text_encoder_2]:
+    emb = comp.text_model.embeddings
+    if emb.position_ids.dtype != torch.long:
+        emb.position_ids = emb.position_ids.to(torch.long)
+
+pipe.vae.config.force_upcast = True   # 修复 NaN
+pipe.enable_attention_slicing()       # 节省显存
+
+image = pipe(
+    "a cute cat",
+    num_inference_steps=30,
+    width=1024,
+    height=1024,
+).images[0]
+image.save("output.png")
+```
+
 ## 模型文件
 
 | 文件 | 格式 | 大小 | 加载方式 |
