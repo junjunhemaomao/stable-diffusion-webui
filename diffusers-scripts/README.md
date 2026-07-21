@@ -26,6 +26,27 @@ venv/Scripts/python diffusers-scripts/txt2img.py --fp32 --no-upcast
 
 **不再需要** diffusers 分体格式目录（`sd-v1-5-diffusers/`、`sd-xl-diffusers/`）。`from_single_file` 首次运行下载 ~2MB 配置文件后即完全离线，不需要额外的 ~10GB 权重副本。
 
+## 换电脑 / 公司离线环境
+
+`~/.cache/huggingface/` 不在 git 仓库里，pull 代码不会带上。首次运行 `from_single_file` 需要下载 ~2MB 配置文件，如果公司网络不通就会卡住。
+
+**方案 A（推荐）：从家里拷贝缓存**
+
+把家里 `C:\Users\<用户名>\.cache\huggingface\hub\` 下这两个目录拷贝到公司同路径：
+- `models--runwayml--stable-diffusion-v1-5\`
+- `models--stabilityai--stable-diffusion-xl-base-1.0\`
+
+总共不到 5MB，拷完就是 100% 离线。
+
+**方案 B：用 setup 脚本本地生成（无需网络）**
+
+```bash
+# SD1.5 — 配置硬编码在脚本里，直接跑
+venv/Scripts/python diffusers-scripts/setup_sd15_offline.py
+```
+
+SD1.5 的配置文件全部硬编码在脚本里，完全不需要网络。SDXL 的脚本 (`setup_sdxl_offline.py`) 目前还在调试，建议先用方案 A。
+
 ## 加载方式：from_single_file（100% 离线）
 
 ```python
