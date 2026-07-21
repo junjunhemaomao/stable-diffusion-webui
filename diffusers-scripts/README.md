@@ -1,116 +1,85 @@
-# Diffusers SD1.5 环境说明
+# Diffusers SD1.5 / SDXL 环境说明
 
 ## 当前状态
 
-`diffusers-scripts/txt2img.py` **已可以正常运行**，在公司网络下使用手动下载的完整 diffusers-format 模型，100% 离线。
+`diffusers-scripts/txt2img.py` **完全离线可用**。两种模型均通过 `from_single_file` 从单文件 safetensors 加载，配置文件首次运行后已缓存到本地 `~/.cache/huggingface/`。
 
 ```bash
-# 运行方式（在项目根目录）
+# SDXL（默认，1024×1024, 30步）
 venv/Scripts/python diffusers-scripts/txt2img.py
-venv/Scripts/python diffusers-scripts/txt2img.py --prompt "..." --steps 30
+venv/Scripts/python diffusers-scripts/txt2img.py --prompt "a cat" --steps 30
+
+# SD1.5
+venv/Scripts/python diffusers-scripts/txt2img.py --model models/Stable-diffusion/v1-5-pruned-emaonly.safetensors --type sd15
+
+# 50 系显卡 NaN 兜底（FP32 + upcast）
+venv/Scripts/python diffusers-scripts/txt2img.py --fp32 --no-upcast
 ```
 
-## 为什么下载了两份模型
+## 模型文件
 
-| 文件 | 格式 | 大小 | 谁在用 |
+| 文件 | 格式 | 大小 | 加载方式 |
 |---|---|---|---|
-| `models/Stable-diffusion/v1-5-pruned-emaonly.safetensors` | 单文件 ckpt | 4.2 GB | webui |
-| `models/Stable-diffusion/sd-v1-5-diffusers/` | diffusers 分体 | ~5 GB | diffusers 脚本 |
+| `v1-5-pruned-emaonly.safetensors` | 单文件 ckpt | 4.0 GB | `from_single_file` |
+| `sd_xl_base_1.0_0.9vae.safetensors` | 单文件 ckpt (0.9VAE) | 6.5 GB | `from_single_file` |
+| `sd_xl_base_1.0.safetensors` | 单文件 ckpt | 6.5 GB | `from_single_file` |
 
-核心原因是 **公司网络从 Python 进程访问 HuggingFace Hub 被墙**。
+**不再需要** diffusers 分体格式目录（`sd-v1-5-diffusers/`、`sd-xl-diffusers/`）。`from_single_file` 首次运行下载 ~2MB 配置文件后即完全离线，不需要额外的 ~10GB 权重副本。
 
-## 两种加载方式
-
-### 方式 A：from_single_file（理想，但需要网络一次）
+## 加载方式：from_single_file（100% 离线）
 
 ```python
-from diffusers import StableDiffusionPipeline
+from diffusers import StableDiffusionPipeline, StableDiffusionXLPipeline
 
+# SD1.5
 pipe = StableDiffusionPipeline.from_single_file(
     "models/Stable-diffusion/v1-5-pruned-emaonly.safetensors",
     torch_dtype=torch.float16,
 )
-pipe.to("cuda")
-```
 
-**优点**：只需要一个 safetensors 文件，不占额外空间。
-
-**问题**：`from_single_file` 首次运行时会去 HuggingFace Hub 下载约 2MB 的配置文件（model_index.json、unet/config.json 等）。一旦配置文件缓存到本地 `~/.cache/huggingface/`，之后就完全离线了。
-
-**在家试试**：网络正常的话，只保留 `v1-5-pruned-emaonly.safetensors`，删掉 `sd-v1-5-diffusers/`，运行这句代码，配置文件自动下载一次就够了。
-
-### 方式 B：from_pretrained（当前方案，100% 离线）
-
-```python
-pipe = StableDiffusionPipeline.from_pretrained(
-    "models/Stable-diffusion/sd-v1-5-diffusers",
+# SDXL（用 0.9 VAE 版，修复 NaN）
+pipe = StableDiffusionXLPipeline.from_single_file(
+    "models/Stable-diffusion/sd_xl_base_1.0_0.9vae.safetensors",
     torch_dtype=torch.float16,
-    local_files_only=True,
 )
 pipe.to("cuda")
 ```
 
-**优点**：完全不依赖网络，所有文件本地齐全。
+首次运行会自动从 `hf-mirror.com` 下载 ~2MB 配置文件。缓存后完全离线。
 
-**缺点**：多占 ~5GB 空间，和 safetensors 内的权重是重复的。
+## 参数默认值
+
+| 参数 | SD1.5 | SDXL |
+|---|---|---|
+| 分辨率 | 512×512 | 1024×1024 |
+| 步数 | 25 | 30 |
+| CFG | 7.5 | 7.0 |
+
+SDXL 原生训练分辨率 1024，低于此尺寸会导致画面扭曲/模糊。
+
+## RTX 50 系列 NaN 修复
+
+50 系显卡 FP16 精度 bug 会在 SDXL 上触发 NaN。脚本默认启用了：
+- `vae.config.force_upcast = True`（等价 webui "Upcast cross attention to float32"）
+- `position_ids` 修复（`from_single_file` FP16 加载 bug）
+- 如仍报 NaN，加 `--fp32` 强制全精度
 
 ## 文件结构
 
 ```
 stable-diffusion-webui/
-├── venv/                                  ← 共用 Python 环境
-│   └── Lib/site-packages/
-│       ├── diffusers/          (0.31.0)
-│       ├── torch/              (2.1.2+cu121)
-│       └── transformers/       (4.30.2)
-│
-├── diffusers-scripts/                     ← 新增：你的 Python 驱动脚本
-│   ├── txt2img.py              ← 文生图脚本
-│   ├── setup_sd15_offline.py   ← 转换脚本（未使用，可删）
+├── diffusers-scripts/
+│   ├── txt2img.py              ← 文生图主脚本
+│   ├── setup_sd15_offline.py   ← SD1.5 离线转换（仅首次配置用）
+│   ├── setup_sdxl_offline.py   ← SDXL 离线转换（仅首次配置用）
+│   ├── try_single_file.py      ← from_single_file 试验脚本
 │   └── output/                 ← 生成图片保存目录
 │
 └── models/Stable-diffusion/
-    ├── v1-5-pruned-emaonly.safetensors    ← webui 用
-    ├── sd_xl_base_1.0.safetensors         ← webui 用
-    └── sd-v1-5-diffusers/                 ← diffusers 用
-        ├── model_index.json
-        ├── unet/
-        │   ├── config.json
-        │   └── diffusion_pytorch_model.safetensors  (3.3 GB)
-        ├── vae/
-        │   ├── config.json
-        │   └── diffusion_pytorch_model.safetensors  (320 MB)
-        ├── text_encoder/
-        │   ├── config.json
-        │   └── model.safetensors                     (470 MB)
-        ├── tokenizer/
-        │   ├── vocab.json
-        │   ├── merges.txt
-        │   ├── tokenizer_config.json
-        │   └── special_tokens_map.json
-        ├── scheduler/scheduler_config.json
-        └── feature_extractor/preprocessor_config.json
+    ├── v1-5-pruned-emaonly.safetensors     ← SD1.5
+    ├── sd_xl_base_1.0.safetensors          ← SDXL（内置 VAE）
+    └── sd_xl_base_1.0_0.9vae.safetensors   ← SDXL（0.9 VAE，推荐）
 ```
-
-## 在家中网络环境的建议操作
-
-1. 确认网络正常后，试方式 A：
-```bash
-python -c "
-from diffusers import StableDiffusionPipeline
-import torch
-pipe = StableDiffusionPipeline.from_single_file(
-    'models/Stable-diffusion/v1-5-pruned-emaonly.safetensors',
-    torch_dtype=torch.float16
-)
-pipe.to('cuda')
-print('OK')
-"
-```
-
-2. 如果方式 A 成功，`sd-v1-5-diffusers/` 目录可以删掉，节省 5GB。
-
-3. 更新 `diffusers-scripts/txt2img.py` 中的默认模型路径，从方式 B 切换到方式 A。
 
 ## diffusers 与 webui 的关系
 

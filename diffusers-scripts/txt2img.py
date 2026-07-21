@@ -28,23 +28,14 @@ PROJECT_DIR = SCRIPT_DIR.parent
 OUTPUT_DIR = SCRIPT_DIR / "output"
 MODELS_DIR = PROJECT_DIR / "models" / "Stable-diffusion"
 
-# 本地已有的模型
-LOCAL_DIFFUSERS   = MODELS_DIR / "sd-v1-5-diffusers"
-LOCAL_SDXL_DIFFUSERS = MODELS_DIR / "sd-xl-diffusers"
-LOCAL_SD15_CKPT   = MODELS_DIR / "v1-5-pruned-emaonly.safetensors"
-LOCAL_SDXL_CKPT   = MODELS_DIR / "sd_xl_base_1.0.safetensors"
-LOCAL_SDXL_VAE9   = MODELS_DIR / "sd_xl_base_1.0_0.9vae.safetensors"  # 修复 NaN 的 0.9 VAE 版本
+# 本地已有的模型（from_single_file，配置已缓存，完全离线）
+LOCAL_SDXL_VAE9 = MODELS_DIR / "sd_xl_base_1.0_0.9vae.safetensors"  # SDXL + 0.9 VAE（推荐）
+LOCAL_SD15_CKPT = MODELS_DIR / "v1-5-pruned-emaonly.safetensors"
+LOCAL_SDXL_CKPT = MODELS_DIR / "sd_xl_base_1.0.safetensors"
 
-# 自动检测默认模型
-# 优先级：SDXL 0.9VAE > SD1.5 diffusers > SDXL diffusers > SD1.5 ckpt > SDXL ckpt > 在线
+# 自动检测默认模型：SDXL 0.9VAE > SD1.5 > SDXL > 在线
 if LOCAL_SDXL_VAE9.exists():
     DEFAULT_MODEL = str(LOCAL_SDXL_VAE9)
-    MODEL_TYPE = "sdxl"
-elif LOCAL_DIFFUSERS.exists():
-    DEFAULT_MODEL = str(LOCAL_DIFFUSERS)
-    MODEL_TYPE = "sd15"
-elif LOCAL_SDXL_DIFFUSERS.exists():
-    DEFAULT_MODEL = str(LOCAL_SDXL_DIFFUSERS)
     MODEL_TYPE = "sdxl"
 elif LOCAL_SD15_CKPT.exists():
     DEFAULT_MODEL = str(LOCAL_SD15_CKPT)
