@@ -1,4 +1,4 @@
-setuptools==69.5.1  # temp fix for compatibility with some old packages
+setuptools>=77.0.3  # torch 2.13+ requires setuptools >=77.0.3
 GitPython==3.1.32
 Pillow==9.5.0
 accelerate==0.21.0
