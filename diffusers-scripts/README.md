@@ -1,18 +1,20 @@
-# Diffusers SD1.5 / SDXL 环境说明
+# Diffusers txt2img
 
-## 当前状态
+基于 HuggingFace Diffusers 的文生图脚本，支持 SD1.5 / SDXL，完全离线。
 
-`diffusers-scripts/txt2img.py` **完全离线可用**。两种模型均通过 `from_single_file` 从单文件 safetensors 加载，配置文件首次运行后已缓存到本地 `~/.cache/huggingface/`。
+## 快速开始
 
 ```bash
 # SDXL（默认，1024×1024, 30步）
 venv/Scripts/python diffusers-scripts/txt2img.py
-venv/Scripts/python diffusers-scripts/txt2img.py --prompt "a cat" --steps 30
+
+# SDXL 自定义参数
+venv/Scripts/python diffusers-scripts/txt2img.py --prompt "a cat" --steps 30 --W 1024 --H 1024
 
 # SD1.5
 venv/Scripts/python diffusers-scripts/txt2img.py --model models/Stable-diffusion/v1-5-pruned-emaonly.safetensors --type sd15
 
-# 50 系显卡 NaN 兜底（FP32 + upcast）
+# 50 系显卡 NaN 兜底（FP32 + 关 upcast）
 venv/Scripts/python diffusers-scripts/txt2img.py --fp32 --no-upcast
 ```
 
@@ -54,28 +56,19 @@ image.save("output.png")
 | `sd_xl_base_1.0_0.9vae.safetensors` | 单文件 ckpt (0.9VAE) | 6.5 GB | `from_single_file` |
 | `sd_xl_base_1.0.safetensors` | 单文件 ckpt | 6.5 GB | `from_single_file` |
 
-**不再需要** diffusers 分体格式目录（`sd-v1-5-diffusers/`、`sd-xl-diffusers/`）。`from_single_file` 首次运行下载 ~2MB 配置文件后即完全离线，不需要额外的 ~10GB 权重副本。
+所有模型通过 `from_single_file` 加载，不需要 diffusers 分体格式目录，也不要额外的 ~10GB 权重副本。
 
 ## 换电脑 / 公司离线环境
 
-`~/.cache/huggingface/` 不在 git 仓库里，pull 代码不会带上。首次运行 `from_single_file` 需要下载 ~2MB 配置文件，如果公司网络不通就会卡住。
+`~/.cache/huggingface/` 不在 git 仓库里。首次运行 `from_single_file` 需要下载 ~2MB 配置文件，如果公司网络不通就会卡住。
 
-**方案 A（推荐）：从家里拷贝缓存**
+**从家里拷贝缓存（~5MB）：**
 
 把家里 `C:\Users\<用户名>\.cache\huggingface\hub\` 下这两个目录拷贝到公司同路径：
 - `models--runwayml--stable-diffusion-v1-5\`
 - `models--stabilityai--stable-diffusion-xl-base-1.0\`
 
-总共不到 5MB，拷完就是 100% 离线。
-
-**方案 B：用 setup 脚本本地生成（无需网络）**
-
-```bash
-# SD1.5 — 配置硬编码在脚本里，直接跑
-venv/Scripts/python diffusers-scripts/setup_sd15_offline.py
-```
-
-SD1.5 的配置文件全部硬编码在脚本里，完全不需要网络。SDXL 的脚本 (`setup_sdxl_offline.py`) 目前还在调试，建议先用方案 A。
+拷完就是 100% 离线。
 
 ## 加载方式：from_single_file（100% 离线）
 
@@ -121,9 +114,7 @@ SDXL 原生训练分辨率 1024，低于此尺寸会导致画面扭曲/模糊。
 stable-diffusion-webui/
 ├── diffusers-scripts/
 │   ├── txt2img.py              ← 文生图主脚本
-│   ├── setup_sd15_offline.py   ← SD1.5 离线转换（仅首次配置用）
-│   ├── setup_sdxl_offline.py   ← SDXL 离线转换（仅首次配置用）
-│   ├── try_single_file.py      ← from_single_file 试验脚本
+│   ├── README.md
 │   └── output/                 ← 生成图片保存目录
 │
 └── models/Stable-diffusion/
